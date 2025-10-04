@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Farm Tycoon — Advanced v2</title>
+<style>
+  :root{
+    --bg1:#dff3ff; --bg2:#eaf7e0; --panel:#ffffffcc; --accent:#5a8a34; --muted:#7a8b80;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background:linear-gradient(180deg,var(--bg1),var(--bg2)); color:#173226; display:flex; justify-content:center; padding:18px;
+  }
+  .wrap{ width:1100px; max-width:98vw; display:grid; grid-template-columns: 1fr 360px; gap:18px; align-items:start; }
+
+  /* main panel */
+  .game {
+    background: linear-gradient(#ffffffcc, #f6fff6);
+    border-radius:14px; padding:14px; box-shadow:0 12px 40px rgba(20,40,20,0.12);
+    min-height:640px; position:relative; overflow:hidden;
+  }
+
+  header{
+    display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px;
+  }
+  .stats { display:flex; gap:12px; align-items:center; }
+  .stat { background:var(--panel); padding:8px 12px; border-radius:10px; font-weight:600; box-shadow:0 4px 14px rgba(10,20,10,0.06); }
+  h1 { margin:0; font-size:20px; letter-spacing:0.2px; color:#173226; }
+
+  /* field area */
+  #farmStage { display:flex; gap:12px; }
+  .left {
+    flex:1; display:flex; flex-direction:column; gap:12px;
+  }
+  .field {
+    background: linear-gradient(#9ed375, #6aa34a);
+    border-radius:10px; height:320px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center;
+    box-shadow: inset 0 -30px 40px rgba(10,20,10,0.06);
+  }
+  .soil { position:absolute; bottom:0; left:0; right:0; height:28%; background:linear-gradient(#7a4b24,#6a3e1f); border-top-left-radius:28px; border-top-right-radius:28px; }
+  .plant {
+    width:80px; height:100px; transform-origin:bottom center; position:absolute; bottom: 28%; transition: transform 0.25s;
+    text-align:center; font-size:48px; user-select:none;
+  }
+  .plant.grow0 { transform: translateY(22px) scale(0.6) rotate(-6deg); opacity:0.9; }
+  .plant.grow1 { transform: translateY(6px) scale(0.85) rotate(-3deg); }
+  .plant.grow2 { transform: translateY(0) scale(1.0) rotate(0); }
+  .plant.grow3 { transform: translateY(-6px) scale(1.15) rotate(2deg); filter: drop-shadow(0 10px 10px rgba(0,0,0,0.08)); }
+
+  .tractor {
+    position:absolute; left:-140px; bottom:24px; width:120px; height:56px; transition:left 1.8s linear;
+  }
+  .tractor .body { background:#6a3e1f; border-radius:8px; height:36px; margin-left:10px; margin-top:6px; color:white; display:flex; align-items:center; padding:4px 8px; font-weight:700;}
+  .wheel { width:28px; height:28px; background:#222; border-radius:50%; position:absolute; bottom:6px; box-shadow:inset 0 -6px 6px rgba(255,255,255,0.08); }
+  .wheel.left{ left:8px } .wheel.right{ right:8px }
+
+  /* panels right side */
+  .panel {
+    background:var(--panel); border-radius:12px; padding:12px; box-shadow:0 10px 30px rgba(10,20,10,0.08);
+  }
+  .shop .item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-radius:8px; margin-bottom:8px; background:#fff; }
+  .shop button { background:var(--accent); color:white; border:none; padding:8px 10px; border-radius:8px; font-weight:700; cursor:pointer; }
+  .shop button:disabled { background:#ccc; cursor:not-allowed; color:#666; }
+
+  .levels { display:flex; flex-direction:column; gap:8px; }
+  .levelBtn { border-radius:8px; padding:8px; display:flex; justify-content:space-between; align-items:center; background:#fff; cursor:pointer; }
+  .levelBtn.locked{ opacity:0.6; filter:grayscale(0.3); cursor:not-allowed; }
+  .small { font-size:13px; color:var(--muted) }
+
+  /* bottom actions */
+  .actions { margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; }
+  .btn { background:#fff; padding:10px 12px; border-radius:10px; border:1px solid #e6e6e6; cursor:pointer; font-weight:700; }
+  .btn.primary { background:var(--accent); color:#fff; border:none; }
+
+  /* buffs area */
+  .buffs { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+  .buff { background:#fff; padding:6px 8px; border-radius:8px; font-weight:700; font-size:13px; }
+
+  /* prestige modal */
+  #prestigeModal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:60; }
+  #prestigeModal .box { width:min(560px,94%); background:#fff; padding:18px; border-radius:12px; box-shadow:0 16px 60px rgba(0,0,0,0.25); text-align:center; }
+
+  /* responsive */
+  @media (max-width:980px){ .wrap{ grid-template-columns: 1fr; } .rightCol{ order:2 } .game{ min-height:760px } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="game">
+      <header>
+        <h1>Farm Tycoon — Advanced v2 🌾</h1>
+        <div class="stats">
+          <div class="stat" id="moneyStat">💰 0 kr</div>
+          <div class="stat" id="incomeStat">🟢 +0/s</div>
+          <div class="stat" id="multStat">⭐ x1.00</div>
+        </div>
+      </header>
+
+      <div id="farmStage">
+        <div class="left">
+          <div class="field" id="field" title="Klik for at høste">
+            <div class="plant grow0" id="plantEmoji">🌱</div>
+            <div class="soil"></div>
+            <div class="tractor" id="tractor">
+              <div class="body">TRAK</div>
+              <div class="wheel left"></div>
+              <div class="wheel right"></div>
+            </div>
+          </div>
+
+          <div class="panel" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div class="small">Klik/tryk for at høste</div>
+              <div style="font-weight:800; font-size:18px" id="clickValue">+1 kr</div>
+            </div>
+            <div style="text-align:right">
+              <div class="small">Level</div>
+              <div style="font-weight:800; font-size:18px" id="playerLevel">Mark</div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div><strong>Prestige</strong><div class="small">Reset for permanent bonus</div></div>
+              <div style="text-align:right">
+                <div style="font-weight:700" id="prestigePoints">0</div>
+                <div class="small">Næste prestige kræver <span id="prestigeCost">—</span> kr</div>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:10px;">
+              <button class="btn primary" id="doPrestige">Prestige (Reset)</button>
+              <button class="btn" id="exportSave">Eksportér</button>
+              <button class="btn" id="importSave">Importér</button>
+            </div>
+            <div class="buffs" id="buffsArea"></div>
+          </div>
+
+        </div>
+
+        <div class="rightCol">
+          <div class="panel shop">
+            <h3 style="margin:0 0 8px 0">🛒 Butik & Opgraderinger</h3>
+            <div id="shopList"></div>
+            <div class="small" style="margin-top:8px">Priser stiger med hver køb. Nogle varer giver midlertidige buffs (forbrug), andre permanente effekter.</div>
+          </div>
+
+          <div class="panel" style="margin-top:12px">
+            <h4 style="margin:0 0 8px 0">🏭 Produktionsniveauer</h4>
+            <div class="levels" id="levelsList"></div>
+            <div class="small" style="margin-top:8px">Lås op for flere produktionstrin for at få højere output: Mejeri, Fabrik, Eksport.</div>
+          </div>
+
+          <div class="panel" style="margin-top:12px; display:flex; gap:8px; align-items:center; justify-content:space-between;">
+            <div>
+              <div class="small">Lyd</div>
+              <button class="btn" id="toggleAudio">🔊 Tænd</button>
+            </div>
+            <div>
+              <div class="small">Gem</div>
+              <button class="btn" id="saveBtn">💾 Gem nu</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- prestige modal -->
+    <div id="prestigeModal">
+      <div class="box">
+        <h2>Prestige — Vil du reset'e?</h2>
+        <p id="prestigeInfo">Du får +0 prestige point</p>
+        <div style="margin-top:12px; display:flex; gap:8px; justify-content:center;">
+          <button class="btn" id="cancelPrestige">Afvis</button>
+          <button class="btn primary" id="confirmPrestige">Bekræft Prestige</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Farm Tycoon — Advanced v2 (single file)
+   Added unique shop items:
+   - Magnet (passive: on click, bonus % of passive income)
+   - Ad Campaign (consumable buff: +% autoIncome for 60s)
+   - Market Research (permanent +% autoIncome)
+   Includes export ZIP-ready file generation (done outside this HTML)
+*/
+
+// ----- GAME STATE -----
+let state = {
+  money: 0,
+  clickValue: 1,
+  autoIncome: 0,
+  shop: [],
+  levelsUnlocked: { mark:true, dairy:false, factory:false, export:false },
+  prestigePoints: 0,
+  prestigeMultiplier: 1.0,
+  totalEarned: 0,
+  playTime: 0,
+  tractorX: -140,
+  audioOn: true,
+  buffs: [] // active buffs {id, label, remainingSec, multiplier, expiresAt}
+};
+
+// default shop items (extended)
+const baseShop = [
+  { id:'hoe', name:'Bedre Såmaskine', price: 50, type:'click', value:1, qty:0, desc:'+1 kr/klik' },
+  { id:'traktor', name:'Traktor', price: 250, type:'auto', value:1, qty:0, desc:'+1 kr/s' },
+  { id:'fert', name:'Gødning', price: 1200, type:'click', value:5, qty:0, desc:'+5 kr/klik' },
+  { id:'harvester', name:'Høstmaskine', price: 4500, type:'auto', value:5, qty:0, desc:'+5 kr/s' },
+  { id:'magnet', name:'Magnet (unik)', price: 5000, type:'passivePercent', value:0.2, qty:0, desc:'+20% af passiv indkomst gives som bonus ved klik' },
+  { id:'ad', name:'Ad Campaign (forbrug)', price: 8000, type:'buff', value:{mult:1.5, sec:60}, qty:0, desc:'+50% auto indkomst i 60s' },
+  { id:'market', name:'Market Research', price: 12000, type:'permanentPercent', value:0.10, qty:0, desc:'+10% permanent auto indkomst' },
+  { id:'drip', name:'Drip-system', price: 14000, type:'auto', value:20, qty:0, desc:'+20 kr/s' },
+  { id:'export_pack', name:'Export Starter', price: 60000, type:'mixed', value:{auto:80,click:30}, qty:0, desc:'+80 kr/s & +30 kr/klik' },
+];
+
+const levelDefs = [
+  { id:'mark', title:'Mark', cost:0, desc:'Start her — klik for at høste' },
+  { id:'dairy', title:'Mejeri', cost:5000, desc:'Forarbejd mælk: øget indtjening' },
+  { id:'factory', title:'Fabrik', cost:40000, desc:'Industrielt output, meget højere indtjening' },
+  { id:'export', title:'Eksport', cost:200000, desc:'Sælg internationalt — kæmpe indtjening' },
+];
+
+// ----- UI refs -----
+const moneyStat = document.getElementById('moneyStat');
+const incomeStat = document.getElementById('incomeStat');
+const multStat = document.getElementById('multStat');
+const clickValueEl = document.getElementById('clickValue');
+const playerLevelEl = document.getElementById('playerLevel');
+const shopListEl = document.getElementById('shopList');
+const levelsListEl = document.getElementById('levelsList');
+const plantEmoji = document.getElementById('plantEmoji');
+const tractorEl = document.getElementById('tractor');
+const prestigePointsEl = document.getElementById('prestigePoints');
+const prestigeCostEl = document.getElementById('prestigeCost');
+const doPrestigeBtn = document.getElementById('doPrestige');
+const prestigeModal = document.getElementById('prestigeModal');
+const prestigeInfo = document.getElementById('prestigeInfo');
+const confirmPrestige = document.getElementById('confirmPrestige');
+const cancelPrestige = document.getElementById('cancelPrestige');
+const toggleAudioBtn = document.getElementById('toggleAudio');
+const saveBtn = document.getElementById('saveBtn');
+const exportSaveBtn = document.getElementById('exportSave');
+const importSaveBtn = document.getElementById('importSave');
+const buffsArea = document.getElementById('buffsArea');
+
+// sounds (WebAudio)
+let audioCtx = null;
+let musicNode = null;
+let masterGain = null;
+let musicRunning = false;
+
+function initAudio(){
+  try{
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain(); masterGain.gain.value = 0.08; masterGain.connect(audioCtx.destination);
+
+    const o1 = audioCtx.createOscillator();
+    const o2 = audioCtx.createOscillator();
+    const g1 = audioCtx.createGain();
+    g1.gain.value = 0.06;
+    o1.type = 'sine'; o2.type='triangle';
+    o1.frequency.value = 220;
+    o2.frequency.value = 176;
+    o1.connect(g1); o2.connect(g1); g1.connect(masterGain);
+    o1.start(); o2.start();
+    musicNode = { o1, o2, g1 };
+    musicRunning = true;
+  }catch(e){ audioCtx=null; musicRunning=false; }
+}
+
+function stopAudio(){
+  if(!audioCtx || !musicRunning) return;
+  try{ musicNode.o1.stop(); musicNode.o2.stop(); audioCtx.close(); }catch(e){};
+  musicRunning=false; audioCtx=null; musicNode=null;
+}
+
+function beep(freq=880, t=0.08){ if(!state.audioOn) return; if(!audioCtx) initAudio(); if(!audioCtx) return; const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); g.gain.value = 0.0001; o.frequency.value = freq; o.type='sine'; const now = audioCtx.currentTime; g.gain.exponentialRampToValueAtTime(0.06, now+0.01); g.gain.exponentialRampToValueAtTime(0.0001, now+t); o.start(now); o.stop(now+t+0.02); }
+
+// ----- INIT SHOP / LOAD -----
+function resetShop(){ state.shop = JSON.parse(JSON.stringify(baseShop)); }
+resetShop();
+
+// autosave/load
+function saveGame(){ const copy = JSON.parse(JSON.stringify(state)); localStorage.setItem('farmTycoonAdvanced_v2', JSON.stringify(copy)); }
+function loadGame(){ const raw = localStorage.getItem('farmTycoonAdvanced_v2'); if(raw){ try{ const parsed = JSON.parse(raw); Object.assign(state, parsed); if(!state.shop || !Array.isArray(state.shop)) resetShop(); }catch(e){ resetShop(); } } }
+loadGame();
+
+// ----- GAME LOGIC -----
+let lastTick = Date.now();
+function tick(){
+  const now = Date.now();
+  const dt = (now - lastTick)/1000;
+  lastTick = now;
+  state.playTime += dt;
+
+  // update buffs remaining and remove expired
+  const nowSec = Date.now()/1000;
+  state.buffs = state.buffs.filter(b=>{
+    return b.expiresAt > nowSec;
+  });
+
+  // auto income
+  let auto = state.autoIncome || 0;
+  // apply permanent percent buffs (market research)
+  if(state.shop){
+    state.shop.forEach(s=>{ if(s.type==='permanentPercent' && s.qty>0){ auto *= (1 + s.value * s.qty); } });
+  }
+  // apply current buffs multipliers
+  state.buffs.forEach(b => { if(b.mult) auto *= b.mult; });
+
+  // apply level bonuses
+  if(state.levelsUnlocked.dairy) auto *= 1.15;
+  if(state.levelsUnlocked.factory) auto *= 1.35;
+  if(state.levelsUnlocked.export) auto *= 1.6;
+
+  // prestige multiplier
+  auto *= state.prestigeMultiplier;
+
+  if(auto > 0){
+    state.money += auto * dt;
+    state.totalEarned += auto * dt;
+  }
+
+  // tractor animation
+  state.tractorX += 80 * dt;
+  if(state.tractorX > window.innerWidth) state.tractorX = -160;
+  tractorEl.style.left = `${state.tractorX}px`;
+
+  updateUI();
+}
+setInterval(tick, 1000/20); // 20 FPS tick
+
+// update UI
+function updateUI(){
+  moneyStat.innerText = `💰 ${formatMoney(state.money)} kr`;
+  // compute passive per second (showing applied buffs/pct but not roundings)
+  let passive = state.autoIncome;
+  if(state.shop){
+    state.shop.forEach(s=>{ if(s.type==='permanentPercent' && s.qty>0){ passive *= (1 + s.value * s.qty); } });
+  }
+  state.buffs.forEach(b => { if(b.mult) passive *= b.mult; });
+  if(state.levelsUnlocked.dairy) passive *= 1.15;
+  if(state.levelsUnlocked.factory) passive *= 1.35;
+  if(state.levelsUnlocked.export) passive *= 1.6;
+  passive *= state.prestigeMultiplier;
+  incomeStat.innerText = `🟢 +${round2(passive)}/s`;
+  multStat.innerText = `⭐ x${round2(state.prestigeMultiplier)}`;
+  clickValueEl.innerText = `+${formatMoney(round2(state.clickValue * state.prestigeMultiplier))} kr`;
+  playerLevelEl.innerText = getCurrentLevelTitle();
+
+  prestigePointsEl.innerText = Math.floor(state.prestigePoints);
+  prestigeCostEl.innerText = formatMoney(calcPrestigeCost());
+
+  // shop render
+  shopListEl.innerHTML = '';
+  state.shop.forEach((it, idx)=>{
+    const div = document.createElement('div'); div.className='item';
+    const canBuy = state.money >= it.price;
+    div.innerHTML = `<div>
+      <strong>${it.name}</strong><br><small class="small">${it.desc}</small><br><small class="small">Pris: ${formatMoney(it.price)} kr</small>
+    </div>`;
+    const btn = document.createElement('button'); btn.textContent='Køb';
+    if(!canBuy) btn.disabled = true;
+    btn.onclick = ()=> buyShopItem(idx);
+    div.appendChild(btn);
+    shopListEl.appendChild(div);
+  });
+
+  // levels
+  levelsListEl.innerHTML = '';
+  levelDefs.forEach(ld=>{
+    const unlocked = !!state.levelsUnlocked[ld.id];
+    const div = document.createElement('div'); div.className='levelBtn' + (unlocked? '':' locked');
+    div.onclick = ()=> { if(!unlocked) tryUnlockLevel(ld.id); };
+    div.innerHTML = `<div><strong>${ld.title}</strong><div class="small">${ld.desc}</div></div>
+      <div style="text-align:right">${unlocked? '<span style="color:green">Låst op</span>': '<div class="small">Pris: '+formatMoney(ld.cost)+' kr</div>'}</div>`;
+    levelsListEl.appendChild(div);
+  });
+
+  // buffs display
+  buffsArea.innerHTML = '';
+  state.buffs.forEach(b=>{
+    const el = document.createElement('div'); el.className='buff';
+    const remaining = Math.max(0, Math.ceil(b.expiresAt - Date.now()/1000));
+    el.textContent = `${b.label} (${remaining}s)`;
+    buffsArea.appendChild(el);
+  });
+}
+
+// buy shop item (handles several types)
+function buyShopItem(i){
+  const it = state.shop[i];
+  if(state.money < it.price){ beep(220,0.06); return; }
+  state.money -= it.price;
+  if(it.type === 'click'){
+    state.clickValue += it.value;
+  } else if(it.type === 'auto'){
+    state.autoIncome += it.value;
+  } else if(it.type === 'passivePercent'){
+    // magnet: increase qty so clicks will grant bonus portion of passive
+    it.qty = (it.qty || 0) + 1;
+  } else if(it.type === 'permanentPercent'){
+    it.qty = (it.qty || 0) + 1;
+  } else if(it.type === 'mixed'){
+    state.autoIncome += it.value.auto;
+    state.clickValue += it.value.click;
+    it.qty = (it.qty || 0) + 1;
+  } else if(it.type === 'buff'){
+    // immediate activation: push buff with expiresAt
+    const nowSec = Date.now()/1000;
+    const b = { id: it.id + '_' + Date.now(), label: it.name, mult: it.value.mult, expiresAt: nowSec + it.value.sec };
+    state.buffs.push(b);
+    it.qty = (it.qty || 0) + 1;
+  }
+  // price increase
+  it.price = Math.ceil(it.price * 1.38);
+  beep(900,0.06);
+  saveGame();
+  updateUI();
+}
+
+// click action (harvest)
+const field = document.getElementById('field');
+field.addEventListener('click', ()=>{
+  // base gain
+  let gain = state.clickValue;
+  // apply prestige multiplier
+  gain *= state.prestigeMultiplier;
+  // magnet effect: for each magnet qty, give a percent of current passive as bonus
+  const magnet = (state.shop.find(s=>s.id==='magnet') || {}).qty || 0;
+  if(magnet > 0){
+    // compute passive quickly
+    let passive = state.autoIncome;
+    state.shop.forEach(s=>{ if(s.type==='permanentPercent' && s.qty>0){ passive *= (1 + s.value * s.qty); } });
+    state.buffs.forEach(b => { if(b.mult) passive *= b.mult; });
+    if(state.levelsUnlocked.dairy) passive *= 1.15;
+    if(state.levelsUnlocked.factory) passive *= 1.35;
+    if(state.levelsUnlocked.export) passive *= 1.6;
+    passive *= state.prestigeMultiplier;
+    // each magnet gives 20% * qty of passive as immediate bonus on click
+    const magItem = state.shop.find(s=>s.id==='magnet');
+    const pct = magItem ? magItem.value : 0.2;
+    const extra = passive * pct * magnet;
+    gain += extra;
+    // show small visual by temporarily increasing plant size
+  }
+  state.money += gain;
+  state.totalEarned += gain;
+  animatePlantGrowth();
+  beep(1000, 0.04);
+  saveGame();
+  updateUI();
+});
+
+// plant growth animation
+let plantStage = 0;
+function animatePlantGrowth(){
+  plantStage = (plantStage + 1) % 4;
+  plantEmoji.className = 'plant grow' + plantStage;
+  const stageEmojis = ['🌱','🌿','🥕','🍎'];
+  plantEmoji.textContent = stageEmojis[plantStage];
+  setTimeout(()=>{ plantStage = Math.max(1, plantStage-1); plantEmoji.className = 'plant grow' + plantStage; plantEmoji.textContent = stageEmojis[plantStage]; }, 600);
+}
+
+// tractor loop start
+function initTractor(){ state.tractorX = -160; tractorEl.style.left = `${state.tractorX}px`; setInterval(()=>{ state.tractorX = -160; }, 7000); }
+initTractor();
+
+// ----- PRESTIGE -----
+function calcPrestigeCost(){ const base = Math.max(5000, Math.floor(state.totalEarned * 0.12)); return base; }
+function calcPrestigeGrant(){ return Math.floor(Math.sqrt(state.totalEarned / 10000)); }
+
+const prestigePointsEl = document.getElementById('prestigePoints');
+doPrestigeBtn.addEventListener('click', ()=>{
+  const cost = calcPrestigeCost();
+  if(state.money < cost){
+    prestigeInfo.innerText = `Du har ikke nok penge. Du skal bruge ${formatMoney(cost)} kr for at prestige.`;
+    prestigeModal.style.display = 'flex';
+    confirmPrestige.style.display = 'none'; return;
+  }
+  const grant = calcPrestigeGrant();
+  prestigeInfo.innerText = `Prestige koster ${formatMoney(cost)} kr. Du vil modtage ${grant} prestige point (permanent). Er du sikker?`;
+  confirmPrestige.style.display = 'inline-block'; prestigeModal.style.display = 'flex';
+});
+document.getElementById('cancelPrestige').addEventListener('click', ()=> prestigeModal.style.display='none');
+document.getElementById('confirmPrestige').addEventListener('click', ()=>{
+  const cost = calcPrestigeCost();
+  if(state.money < cost){ prestigeModal.style.display='none'; return; }
+  const grant = calcPrestigeGrant();
+  state.prestigePoints += grant;
+  state.prestigeMultiplier = 1 + state.prestigePoints * 0.04;
+  state.money = 0;
+  state.clickValue = 1;
+  state.autoIncome = 0;
+  resetShop();
+  state.levelsUnlocked = { mark:true, dairy:false, factory:false, export:false };
+  state.totalEarned = 0;
+  state.clickValue += Math.floor(state.prestigePoints * 0.5);
+  prestigeModal.style.display='none';
+  beep(1500,0.18);
+  saveGame(); updateUI();
+});
+
+// export / import save
+exportSaveBtn.addEventListener('click', ()=>{
+  const data = JSON.stringify(state);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download='farm-tycoon-advanced-v2-save.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+importSaveBtn.addEventListener('click', ()=>{
+  const input = document.createElement('input'); input.type='file'; input.accept='application/json';
+  input.onchange = (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      try{
+        const parsed = JSON.parse(ev.target.result);
+        Object.assign(state, parsed);
+        if(!state.shop) resetShop();
+        saveGame();
+        updateUI();
+        alert('Save importeret!');
+      }catch(err){ alert('Fejl ved import: ugyldigt format'); }
+    };
+    reader.readAsText(f);
+  };
+  input.click();
+});
+
+// save button
+document.getElementById('saveBtn').addEventListener('click', ()=>{ saveGame(); alert('Spillet er gemt.'); });
+
+// audio toggle
+document.getElementById('toggleAudio').addEventListener('click', ()=>{
+  state.audioOn = !state.audioOn;
+  document.getElementById('toggleAudio').textContent = state.audioOn ? '🔊 Tænd' : '🔇 Sluk';
+  if(state.audioOn){ if(!musicRunning) initAudio(); } else stopAudio();
+  saveGame();
+});
+
+// helpers
+function formatMoney(n){
+  if(n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+  if(n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+  if(n >= 1e3) return (n/1e3).toFixed(2) + 'k';
+  return Math.floor(n);
+}
+function round2(n){ return Math.round(n*100)/100; }
+function getCurrentLevelTitle(){ if(state.levelsUnlocked.export) return 'Eksport'; if(state.levelsUnlocked.factory) return 'Fabrik'; if(state.levelsUnlocked.dairy) return 'Mejeri'; return 'Mark'; }
+
+// periodic autosave
+setInterval(()=>{ saveGame(); }, 5000);
+
+// keyboard shortcuts
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'p') { doPrestigeBtn.click(); }
+  if(e.key === 's') { document.getElementById('saveBtn').click(); }
+  if(e.key === 'm') { document.getElementById('toggleAudio').click(); }
+});
+
+// tutorial
+if(!localStorage.getItem('farmTycoonAdvanced_v2_seenTutorial')){
+  alert('Velkommen til Farm Tycoon — Advanced v2!\nNye ting: Magnet (giver bonus ved klik), Ad Campaign (midlertidig buff), Market Research (permanent % bump). Du kan eksportere/importere saves.');
+  localStorage.setItem('farmTycoonAdvanced_v2_seenTutorial','1');
+}
+
+updateUI();
+</script>
+</body>
+</html>
